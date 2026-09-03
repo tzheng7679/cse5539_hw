@@ -1,0 +1,59 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+
+\DeclareMathOperator{\softmax}{softmax}
+\DeclareMathOperator{\MHA}{{MHA}}
+\DeclareMathOperator{\Linear}{{Linear}}
+\DeclareMathOperator{\ppl}{{ppl}}
+
+\begin{document}
+
+\section*{Problem 1}
+
+In MHA, the equations would be \begin{gather*}
+    MHA_i = \softmax(\frac{Q_iK_i^T}{\sqrt{d_k/h}})V_i \\
+    MHA = \Linear([MHA_1, MHA_2, ..., MHA_h])
+\end{gather*}
+
+where $i$ represents this being for the $i$-th head, and $Q_i = W_{q,i}x$, $K_i = W_{K,i}x$, and $V_i = W_{v,i}x$ represents the query, key, and values matrices, respectively, for the head. $Q_i, K_i, V_i \in \mathbb{R}^{n, d_k/h}$, where $n$ is the length of the sequence, 
+$d_k$ is the dimension of the hidden state of the model (so the dimension of each column of $x$).
+
+The query matrix comprises query vectors corresponding to each token. MHA then takes the dot product between each token's query vector and the key vectors of all previous tokens and itself and softmaxes those dot products (which are scaled before the softmax in the case of MHA by $\sqrt{d_k}$).
+These scores are then taken to weigh how much to use the value vector for each of the preceding tokens and itself, and the sum of those weighed value vectors are added to the embedding of each token. This is the output of one head of attention; the outputs of all the heads in a layer are then concatenated and projected through a linear layer for the final output of SDPA.
+
+\section*{Problem 2}
+
+\subsection*{2.1}
+The minimum possible would be $1$, since \begin{gather*}
+    p(w_i) \leq 1 \\
+    \implies \log_2 p(w_i|...) \leq 0 \\
+    \implies H = -\frac{1}{n}\sum_{i=1}^n \log_2p(w_i|...) \geq 0 \\
+    \implies \ppl(w) = 2^H \geq 2^0 = 1 
+\end{gather*}
+
+Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which case $\log_2 p(w_i|...) \rightarrow -\infty \implies H \rightarrow \infty \implies ppl(w) \rightarrow \infty$.
+
+\subsection*{2.2}
+
+\renewcommand{\theenumi}{\alph{enumi}}
+\begin{enumerate}
+    \item When you want something identical to greedy decoding (i.e. you always want the token with the highest probability and you don't care about the probability of any other token).
+    \item When you want the standard output from the language model; this would be for everyday use and to check the model itself (i.e. you would want to use this when doing testing/validation/benchmarking).
+    \item When you want results other than what the model gives you at lower temps. For example, if you keep getting output that is 
+    undesirable with a lower temperature, then you could increase the temperature to increase the variety of responses that you get in hopes of getting something that you want.
+    \item If you want to get a more reliable output without restricting the model too much. Similar to top-k, but better at dynamically accounting for changes in distribution shape (i.e. can sample from more tokens if it is less certain, or sample from less when it is more certain)
+    \item Similar to nucleus sampling, but it can be better when you have a very concentrated distribution such that top-p sampling would still consider words that have at very low probabilities at the tail of the distribution. 
+\end{enumerate}
+\renewcommand{\theenumi}{\arabic{enumi}}
+
+\subsection*{2.3}
+
+\section*{Problem 3}
+
+
+
+
+\end{document}

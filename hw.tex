@@ -51,7 +51,24 @@ Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which cas
 
 \subsection*{2.3}
 
+% TODO 
+% INSERT LIKN TO NOTEBOOK HERE
+
 \section*{Problem 3}
+
+\subsection*{3.1}
+
+Because the gradient is the direction of steepest ascent on the loss function with respect to the parameters. That means that stepping the parameters in the direction of the gradient (for some step size) leads to an increase in the loss function.
+
+In SGD, you change the parameters by adding $-\gamma g_t$. $g_t$ is the sum of a momentum term and the gradient with the sign flipped when $maximize$ is true. That means when $maximize$ is true, you move the parameters in the direction opposite to the negative gradient, or just in the direction of the gradient, which is the direction of steepest ascent. In that case, that would mean maximizing your objective function. Then when $maximize$ is false, the parameters are updated in the opposite direction, minimizing your objective.
+
+\subsection*{3.2}
+
+
+\section*{Problem 4}
+
+\subsection*{4.1}
+
 
 
 \end{document}

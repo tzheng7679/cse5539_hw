@@ -4,6 +4,7 @@
 \usepackage{amsmath, amssymb}
 \usepackage{booktabs}
 \usepackage{hyperref}
+\usepackage{float}
 
 \DeclareMathOperator{\softmax}{softmax}
 \DeclareMathOperator{\MHA}{{MHA}}
@@ -15,15 +16,25 @@
 \section*{Problem 1}
 
 In MHA, the equations would be \begin{gather*}
-    MHA_i = \softmax(\frac{Q_iK_i^T}{\sqrt{d_k/h}})V_i \\
+    MHA_i = \softmax(\frac{Q_iK_i^T}{\sqrt{d_k}})V_i \\
     MHA = \Linear([MHA_1, MHA_2, ..., MHA_h])
 \end{gather*}
 
-where $i$ represents this being for the $i$-th head, and $Q_i = W_{q,i}x$, $K_i = W_{K,i}x$, and $V_i = W_{v,i}x$ represents the query, key, and values matrices, respectively, for the head. $Q_i, K_i, V_i \in \mathbb{R}^{n, d_k/h}$, where $n$ is the length of the sequence,
-$d_k$ is the dimension of the hidden state of the model (so the dimension of each column of $x$).
+Where $i$ corresponds to the head number, and $Q_i = hW^Q_i$, $K_i = hW^K_i$, and $V_i = hW^V_i$ represents the query, key, and values matrices for the head, respectively. The dimensions in this equation are $Q_i, K_i, V_i \in \mathbb{R}^{n \times d_k}$, where $n$ is the length of the sequence, and
+$d_k = d_{\text{model}} / h$ is the dimension of the hidden state of the model divided by the number of heads.
 
-The query matrix comprises query vectors corresponding to each token. MHA then takes the dot product between each token's query vector and the key vectors of all previous tokens and itself and softmaxes those dot products (which are scaled before the softmax in the case of MHA by $\sqrt{d_k}$).
-These scores are then taken to weigh how much to use the value vector for each of the preceding tokens and itself, and the sum of those weighed value vectors are added to the embedding of each token. This is the output of one head of attention; the outputs of all the heads in a layer are then concatenated and projected through a linear layer for the final output of SDPA.
+The query matrix comprises the query vector corresponding to each token's hidden state. MHA then takes the query vector for each token and then calculates the dot product between it and,
+
+\begin{itemize}
+    \item for an encoder, all other tokens and itself
+    \item for a decoder, all preceding tokens and itself
+\end{itemize}
+
+These dot products are then divided in MHA by $\sqrt{d_k / h}$. You then apply softmax to each set of dot products corresponding to one query vector and the other key vectors (i.e., softmax each row vector of $Q_iK_i^T / \sqrt{d_k}$)
+
+These scores are then taken to weigh how much to use the value vector for every token, and the sum of those weighed value vectors are added to the embedding of each token. This is the output of one head of attention; the outputs of all the heads in a layer are then concatenated and projected through a linear layer for the final output of SDPA.
+
+This equation can batch inputs together through batched matrix multiplication, where these attention matrix multiplications are done in parallel for each sequence (i.e., calculate $QK^T$ for each sequence in a batch in parallel).
 
 \section*{Problem 2}
 
@@ -35,25 +46,24 @@ The minimum possible would be $1$, since \begin{gather*}
     \implies \ppl(w) = 2^H \geq 2^0 = 1
 \end{gather*}
 
-Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which case $\log_2 p(w_i|...) \rightarrow -\infty \implies H \rightarrow \infty \implies ppl(w) \rightarrow \infty$.
+This would occur when the model perfectly predicts the output on every document (i.e., for every $w_i$ in every document, it outputs $p(w_i | w_1, \dots, w_{i-1}) = 1$).
+
+Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which case $\log_2 p(w_i|...) \rightarrow -\infty \implies H \rightarrow \infty \implies \ppl(w) \rightarrow \infty$.
 
 \subsection*{2.2}
 
 \renewcommand{\theenumi}{\alph{enumi}}
 \begin{enumerate}
-    \item When you want something identical to greedy decoding (i.e. you always want the token with the highest probability and you don't care about the probability of any other token).
-    \item When you want the standard output from the language model; this would be for everyday use and to check the model itself (i.e. you would want to use this when doing testing/validation/benchmarking).
-    \item When you want results other than what the model gives you at lower temps. For example, if you keep getting output that is
-          undesirable with a lower temperature, then you could increase the temperature to increase the variety of responses that you get in hopes of getting something that you want.
-    \item If you want to get a more reliable output without restricting the model too much. Similar to top-k, but better at dynamically accounting for changes in distribution shape (i.e. can sample from more tokens if it is less certain, or sample from less when it is more certain)
-    \item Similar to nucleus sampling, but it can be better when you have a very concentrated distribution such that top-p sampling would still consider words that have at very low probabilities at the tail of the distribution.
+    \item When you want something identical to greedy decoding (i.e., you always want the token with the highest probability and you don't care about the probability of any other token). This would always generate the same output, so it would be good for creating very safe (though uncreative) responses.
+    \item When you want the standard output from the language model; this would be for everyday use and balance safer responses with some creativity.
+    \item When you want results other than what the model gives you at lower temps. For example, if you keep getting undesirable outputs with a lower temperature, then you could increase the temperature to increase the variety of responses that you get in hopes of getting something better. In general, it would be useful when you want more creativity and diversity in your responses.
+    \item If you want to get a more reliable output without restricting the model too much. Similar to top-k, but better at dynamically accounting for changes in distribution shape (i.e., can sample from more tokens if it is less certain, or sample from less when it is more certain).
+    \item Similar to nucleus sampling, but it can be better when you have a very flat/uncertain distribution so that you have a hard cap on the number of tokens possible.
 \end{enumerate}
 \renewcommand{\theenumi}{\arabic{enumi}}
 
 \subsection*{2.3}
 
-% TODO 
-% INSERT LIKN TO NOTEBOOK HERE
 \url{https://github.com/tzheng7679/cse5539_hw/blob/main/prob_2_3.ipynb}
 
 \section*{Problem 3}
@@ -62,7 +72,7 @@ Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which cas
 
 Because the gradient is the direction of steepest ascent on the loss function with respect to the parameters. That means that stepping the parameters in the direction of the gradient (for some step size) leads to an increase in the loss function.
 
-In SGD, you change the parameters by adding $-\gamma g_t$. $g_t$ is the sum of a momentum term and the gradient with the sign flipped when $maximize$ is true. That means when $maximize$ is true, you move the parameters in the direction opposite to the negative gradient, or just in the direction of the gradient, which is the direction of steepest ascent. In that case, that would mean maximizing your objective function. Then when $maximize$ is false, the parameters are updated in the opposite direction, minimizing your objective.
+In SGD, you update the parameters by $-\gamma g_t$. $g_t$ is the sum of a momentum term and the negative gradient if $maximize$ is true, or a momentum term and the positive gradient when false. Thus, when $maximize$ is true, the parameters get updated in a direction guided by the opposite of the negative gradient -- i.e., guided in the direction of the gradient, that of steepest ascent. In that case, that would tend toward maximizing your objective function. Then when $maximize$ is false, the parameters are updated in the opposite direction, tending to minimize your objective.
 
 \subsection*{3.2}
 
@@ -76,7 +86,7 @@ In SGD, you change the parameters by adding $-\gamma g_t$. $g_t$ is the sum of a
 
 \subsection*{4.2}
 
-\begin{table}
+\begin{table}[H]
     \centering
     \begin{tabular}{cc}
         \toprule
@@ -94,11 +104,13 @@ In SGD, you change the parameters by adding $-\gamma g_t$. $g_t$ is the sum of a
 
 \subsection*{5.1}
 
-The prefill phase is where you fill the KV cache with the calculated key and value vector values for all the prompt tokens. The decode phase is where you generate new tokens from the existing ones, and add to the KV cache as you generate each token (i.e. add the key and value vector values for one token at a time). 
+The prefill phase is where you fill the KV cache with the calculated key and value vector for all the prompt tokens. The decode phase is where you generate new tokens from the existing ones, and add to the KV cache as you generate each token (i.e., add the key and value vector values for one token at a time). 
 
-They are fundamentally different in that the prefill phase computes all these attention scores and looks up the key and value vectors together (and needs to use the query vector for all tokens), whereas the decode phase only computes these for one token relative to all the others, and uses only the query vectors for one token. This means that the prefill phase is more dependent on compute to fill the KV cache, whereas decoding is dependent on memory bandwidth to read from the KV cache.
+They are fundamentally different in that the prefill phase computes all the attention scores for many tokens at once. This means that it needs to calculate and use the query vectors for all tokens.
 
-The inefficient part would be the decoding phase, since you need to read from the KV cache for the forward pass and can't parallelize operations well (you can parallelize calculations in the prefill phase, but in the decode phase you need to wait for the pass through each layer to generate anything).
+In contrast, the decode phase only computes the attention scores for a generated token relative to all the others. As such, it is not doing matrix multiplication as much as taking the cached key and value matrices and multiplying them by a single query/attention score vector. This means that the prefill phase is more dependent on compute to handle all the matrix multiplications, whereas decoding is dependent on memory bandwidth to read from the KV cache.
+
+The inefficient part is the decoding phase, since you need to read from the KV cache for the forward pass, and you can't parallelize operations well. Decoding each new token depends on every preceding token and is constrained by memory bandwidth.
 
 One idea used in practice is chunked prefill, where longer input prompts are split into chunks and then the processor alternates between prefilling over these chunks and decoding for other requests. This means that you are balancing memory utilization and compute intensity.
 
@@ -107,6 +119,6 @@ One idea used in practice is chunked prefill, where longer input prompts are spl
 
 Because you need to store the key and value vectors for each token; with every token you add to the sequence, you add another set of key and value vectors to the KV cache. Since the size of memory is constant for each token, the size of the cache is linear with the number of tokens (i.e. sequence length).
 
-One way to reduce memory cost would be to use lower precision weights; this would mean that the cache used by each token would be smaller, which would reduce total memory and bandwidth usage. The trade-offs of this would be potentially include reduced accuracy and potential numerical errors during training (such as underflow or overflow).
+One way to reduce memory cost would be to use lower precision weights; this would mean that the cache used by each token would be smaller, which would reduce total memory and bandwidth usage. The trade-offs of this would be potentially include reduced accuracy and potential numerical errors during inference (such as underflow or overflow).
 
 \end{document}

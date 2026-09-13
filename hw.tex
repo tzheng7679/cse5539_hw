@@ -1,7 +1,8 @@
 \documentclass{article}
+\usepackage[margin=1in]{geometry}
 
-\usepackage{amsmath}
-\usepackage{amssymb}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
 \usepackage{hyperref}
 
 \DeclareMathOperator{\softmax}{softmax}
@@ -18,7 +19,7 @@ In MHA, the equations would be \begin{gather*}
     MHA = \Linear([MHA_1, MHA_2, ..., MHA_h])
 \end{gather*}
 
-where $i$ represents this being for the $i$-th head, and $Q_i = W_{q,i}x$, $K_i = W_{K,i}x$, and $V_i = W_{v,i}x$ represents the query, key, and values matrices, respectively, for the head. $Q_i, K_i, V_i \in \mathbb{R}^{n, d_k/h}$, where $n$ is the length of the sequence, 
+where $i$ represents this being for the $i$-th head, and $Q_i = W_{q,i}x$, $K_i = W_{K,i}x$, and $V_i = W_{v,i}x$ represents the query, key, and values matrices, respectively, for the head. $Q_i, K_i, V_i \in \mathbb{R}^{n, d_k/h}$, where $n$ is the length of the sequence,
 $d_k$ is the dimension of the hidden state of the model (so the dimension of each column of $x$).
 
 The query matrix comprises query vectors corresponding to each token. MHA then takes the dot product between each token's query vector and the key vectors of all previous tokens and itself and softmaxes those dot products (which are scaled before the softmax in the case of MHA by $\sqrt{d_k}$).
@@ -31,7 +32,7 @@ The minimum possible would be $1$, since \begin{gather*}
     p(w_i) \leq 1 \\
     \implies \log_2 p(w_i|...) \leq 0 \\
     \implies H = -\frac{1}{n}\sum_{i=1}^n \log_2p(w_i|...) \geq 0 \\
-    \implies \ppl(w) = 2^H \geq 2^0 = 1 
+    \implies \ppl(w) = 2^H \geq 2^0 = 1
 \end{gather*}
 
 Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which case $\log_2 p(w_i|...) \rightarrow -\infty \implies H \rightarrow \infty \implies ppl(w) \rightarrow \infty$.
@@ -42,10 +43,10 @@ Then there would be no finite maximum, since $p(w_i|...)$ can be 0, in which cas
 \begin{enumerate}
     \item When you want something identical to greedy decoding (i.e. you always want the token with the highest probability and you don't care about the probability of any other token).
     \item When you want the standard output from the language model; this would be for everyday use and to check the model itself (i.e. you would want to use this when doing testing/validation/benchmarking).
-    \item When you want results other than what the model gives you at lower temps. For example, if you keep getting output that is 
-    undesirable with a lower temperature, then you could increase the temperature to increase the variety of responses that you get in hopes of getting something that you want.
+    \item When you want results other than what the model gives you at lower temps. For example, if you keep getting output that is
+          undesirable with a lower temperature, then you could increase the temperature to increase the variety of responses that you get in hopes of getting something that you want.
     \item If you want to get a more reliable output without restricting the model too much. Similar to top-k, but better at dynamically accounting for changes in distribution shape (i.e. can sample from more tokens if it is less certain, or sample from less when it is more certain)
-    \item Similar to nucleus sampling, but it can be better when you have a very concentrated distribution such that top-p sampling would still consider words that have at very low probabilities at the tail of the distribution. 
+    \item Similar to nucleus sampling, but it can be better when you have a very concentrated distribution such that top-p sampling would still consider words that have at very low probabilities at the tail of the distribution.
 \end{enumerate}
 \renewcommand{\theenumi}{\arabic{enumi}}
 
@@ -69,6 +70,39 @@ In SGD, you change the parameters by adding $-\gamma g_t$. $g_t$ is the sum of a
 
 \subsection*{4.1}
 
+\subsection*{4.2}
 
+\begin{table}
+    \centering
+    \begin{tabular}{cc}
+        \toprule
+        Approach    & Accuracy (validation) \\
+        \midrule
+        Head Tuning & 0.819954              \\
+        LoRA        & 0.927752              \\
+        \bottomrule
+    \end{tabular}
+    \caption{Results of training ModernBERT on SST2.}
+    \label{tab1}
+\end{table}
+
+\section*{Problem 5}
+
+\subsection*{5.1}
+
+The prefill phase is where you fill the KV cache with the calculated key and value vector values for all the prompt tokens. The decode phase is where you generate new tokens from the existing ones, and add to the KV cache as you generate each token (i.e. add the key and value vector values for one token at a time). 
+
+They are fundamentally different in that the prefill phase computes all these attention scores and looks up the key and value vectors together (and needs to use the query vector for all tokens), whereas the decode phase only computes these for one token relative to all the others, and uses only the query vectors for one token. This means that the prefill phase is more dependent on compute to fill the KV cache, whereas decoding is dependent on memory bandwidth to read from the KV cache.
+
+The inefficient part would be the decoding phase, since you need to read from the KV cache for the forward pass and can't parallelize operations well (you can parallelize calculations in the prefill phase, but in the decode phase you need to wait for the pass through each layer to generate anything).
+
+One idea used in practice is chunked prefill, where longer input prompts are split into chunks and then the processor alternates between prefilling over these chunks and decoding for other requests. This means that you are balancing memory utilization and compute intensity.
+
+
+\subsection*{5.2}
+
+Because you need to store the key and value vectors for each token; with every token you add to the sequence, you add another set of key and value vectors to the KV cache. Since the size of memory is constant for each token, the size of the cache is linear with the number of tokens (i.e. sequence length).
+
+One way to reduce memory cost would be to use lower precision weights; this would mean that the cache used by each token would be smaller, which would reduce total memory and bandwidth usage. The trade-offs of this would be potentially include reduced accuracy and potential numerical errors during training (such as underflow or overflow).
 
 \end{document}
